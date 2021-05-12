@@ -139,6 +139,8 @@ KResult IPv4Socket::connect(FileDescription& description, Userspace<const sockad
         return EFAULT;
 
     m_peer_address = IPv4Address((const u8*)&safe_address.sin_addr.s_addr);
+    if (m_peer_address == IPv4Address { 0, 0, 0, 0 })
+        m_peer_address = IPv4Address { 127, 0, 0, 1 };
     m_peer_port = ntohs(safe_address.sin_port);
 
     return protocol_connect(description, should_block);
@@ -204,7 +206,8 @@ KResultOr<size_t> IPv4Socket::sendto(FileDescription&, const UserOrKernelBuffer&
     dbgln_if(IPV4_SOCKET_DEBUG, "sendto: destination={}:{}", m_peer_address, m_peer_port);
 
     if (type() == SOCK_RAW) {
-        auto result = routing_decision.adapter->send_ipv4(routing_decision.next_hop, m_peer_address, (IPv4Protocol)protocol(), data, data_length, m_ttl);
+        auto result = routing_decision.adapter->send_ipv4(local_address(), routing_decision.next_hop,
+            m_peer_address, (IPv4Protocol)protocol(), data, data_length, m_ttl);
         if (result.is_error())
             return result;
         return data_length;
@@ -369,7 +372,7 @@ KResultOr<size_t> IPv4Socket::recvfrom(FileDescription& description, UserOrKerne
     return nreceived;
 }
 
-bool IPv4Socket::did_receive(const IPv4Address& source_address, u16 source_port, KBuffer&& packet, const Time& packet_timestamp)
+bool IPv4Socket::did_receive(const IPv4Address& source_address, u16 source_port, ReadonlyBytes packet, const Time& packet_timestamp)
 {
     Locker locker(lock());
 
@@ -398,7 +401,7 @@ bool IPv4Socket::did_receive(const IPv4Address& source_address, u16 source_port,
             dbgln("IPv4Socket({}): did_receive refusing packet since queue is full.", this);
             return false;
         }
-        m_receive_queue.append({ source_address, source_port, packet_timestamp, move(packet) });
+        m_receive_queue.append({ source_address, source_port, packet_timestamp, KBuffer::copy(packet.data(), packet.size()) });
         set_can_read(true);
     }
     m_bytes_received += packet_size;

@@ -214,12 +214,13 @@ void Editor::add_to_history(const String& line)
     struct timeval tv;
     gettimeofday(&tv, nullptr);
     m_history.append({ line, tv.tv_sec });
+    m_history_dirty = true;
 }
 
 bool Editor::load_history(const String& path)
 {
     auto history_file = Core::File::construct(path);
-    if (!history_file->open(Core::IODevice::ReadOnly))
+    if (!history_file->open(Core::OpenMode::ReadOnly))
         return false;
     auto data = history_file->read_all();
     auto hist = StringView { data.data(), data.size() };
@@ -278,7 +279,7 @@ bool Editor::save_history(const String& path)
 {
     Vector<HistoryEntry> final_history { { "", 0 } };
     {
-        auto file_or_error = Core::File::open(path, Core::IODevice::ReadWrite, 0600);
+        auto file_or_error = Core::File::open(path, Core::OpenMode::ReadWrite, 0600);
         if (file_or_error.is_error())
             return false;
         auto file = file_or_error.release_value();
@@ -293,7 +294,7 @@ bool Editor::save_history(const String& path)
             [](const HistoryEntry& left, const HistoryEntry& right) { return left.timestamp < right.timestamp; });
     }
 
-    auto file_or_error = Core::File::open(path, Core::IODevice::WriteOnly, 0600);
+    auto file_or_error = Core::File::open(path, Core::OpenMode::WriteOnly, 0600);
     if (file_or_error.is_error())
         return false;
     auto file = file_or_error.release_value();
@@ -301,6 +302,7 @@ bool Editor::save_history(const String& path)
     for (const auto& entry : final_history)
         file->write(String::formatted("{}::{}\n\n", entry.timestamp, entry.entry));
 
+    m_history_dirty = false;
     return true;
 }
 
