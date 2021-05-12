@@ -508,7 +508,7 @@ void handle_tcp(const IPv4Packet& ipv4_packet, const Time& packet_timestamp)
             socket->set_state(TCPSocket::State::Closed);
             return;
         default:
-            dbgln("handle_tcp: unexpected flags in FinWait2 state");
+            dbgln("handle_tcp: unexpected flags in FinWait2 state" + tcp_packet.flags());
             unused_rc = socket->send_tcp_packet(TCPFlags::RST);
             socket->set_state(TCPSocket::State::Closed);
             return;
